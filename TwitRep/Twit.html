@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Twit Replica</title>
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+	<link rel="stylesheet" href="Twit.css">
+</head>
+<body>
+	<div class="bg-shape shape-a"></div>
+	<div class="bg-shape shape-b"></div>
+
+	<main class="app-shell">
+		<aside class="left-panel card">
+			<h1 class="brand">Twit Replica</h1>
+			<div id="activeProfile" class="profile-card"></div>
+			<div class="quick-actions">
+				<button id="openComposerBtn" class="btn-primary mini" type="button">Post</button>
+			</div>
+			<div class="hint">
+				<h3>Quick note</h3>
+				<p>Click avatar or name to open full profile and see only that user's posts.</p>
+			</div>
+		</aside>
+
+		<section class="feed-panel">
+			<button id="goHomeBtn" class="btn-soft back-home hidden" type="button">Home</button>
+			<div id="homeToolbar" class="toolbar card">
+				<label for="feedFilter">Feed filter:</label>
+				<select id="feedFilter">
+					<option value="all">All posts</option>
+					<option value="following">Following only</option>
+					<option value="mine">My posts</option>
+				</select>
+			</div>
+
+			<section id="profileView" class="card profile-view hidden"></section>
+			<div id="feedList" class="feed-list"></div>
+		</section>
+	</main>
+
+	<section id="composerModal" class="modal hidden" aria-hidden="true">
+		<div class="modal-backdrop" data-close="true"></div>
+		<div class="modal-dialog card" role="dialog" aria-modal="true" aria-labelledby="composerTitle">
+			<header class="modal-head">
+				<h2 id="composerTitle">Create a new post</h2>
+				<button id="closeComposerBtn" class="icon-btn" type="button" aria-label="Close">x</button>
+			</header>
+			<div class="modal-body">
+				<label for="postTitle">Title</label>
+				<input id="postTitle" type="text" maxlength="80" placeholder="Post title">
+
+				<label for="postInput">Content</label>
+				<textarea id="postInput" rows="5" maxlength="500" placeholder="Write your post content"></textarea>
+				<div class="composer-row"><span id="charCount">0/500</span></div>
+
+				<label for="postAttachment">Attachment (image, audio, video, text)</label>
+				<input id="postAttachment" type="file" accept="image/*,audio/*,video/*,.txt,.md,.csv,.json,.log">
+				<small id="attachmentName" class="file-hint">No file selected</small>
+			</div>
+			<footer class="modal-foot">
+				<button id="createPostBtn" class="btn-primary" type="button">Publish</button>
+			</footer>
+		</div>
+	</section>
+
+	<section id="postDetailModal" class="modal hidden" aria-hidden="true">
+		<div class="modal-backdrop" data-close-post="true"></div>
+		<article id="postDetailCard" class="modal-dialog card post-detail-dialog" role="dialog" aria-modal="true" aria-labelledby="postDetailTitle"></article>
+	</section>
+
+	<section id="repostModal" class="modal hidden" aria-hidden="true">
+		<div class="modal-backdrop" data-close-repost="true"></div>
+		<div class="modal-dialog card" role="dialog" aria-modal="true" aria-labelledby="repostTitleLabel">
+			<header class="modal-head">
+				<h2 id="repostTitleLabel">Repost</h2>
+				<button id="closeRepostBtn" class="icon-btn" type="button" aria-label="Close">x</button>
+			</header>
+			<div class="modal-body">
+				<label for="repostTitle">Title</label>
+				<input id="repostTitle" type="text" maxlength="80" placeholder="Repost title">
+
+				<label for="repostContent">Content</label>
+				<textarea id="repostContent" rows="4" maxlength="500" placeholder="Write your repost content"></textarea>
+				<div class="composer-row"><span id="repostCharCount">0/500</span></div>
+
+				<section>
+					<label>Original post</label>
+					<div id="repostOriginalPreview" class="repost-preview"></div>
+				</section>
+			</div>
+			<footer class="modal-foot">
+				<button id="publishRepostBtn" class="btn-primary" type="button">Repost</button>
+			</footer>
+		</div>
+	</section>
+
+	<section id="confirmModal" class="modal hidden" aria-hidden="true">
+		<div class="modal-backdrop" data-close-confirm="true"></div>
+		<div class="modal-dialog card confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+			<header class="modal-head">
+				<h2 id="confirmTitle">Confirm Action</h2>
+			</header>
+			<div class="modal-body">
+				<p id="confirmMessage">Do you want to continue?</p>
+				<p class="file-hint">Press Enter to confirm, or Esc to cancel.</p>
+			</div>
+			<footer class="modal-foot">
+				<button id="confirmCancelBtn" class="btn-soft" type="button">Cancel</button>
+				<button id="confirmOkBtn" class="btn-primary" type="button">Confirm</button>
+			</footer>
+		</div>
+	</section>
+
+	<section id="listModal" class="modal hidden" aria-hidden="true">
+		<div class="modal-backdrop" data-close-list="true"></div>
+		<div class="modal-dialog card confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="listModalTitle">
+			<header class="modal-head">
+				<h2 id="listModalTitle">List</h2>
+				<button id="closeListModalBtn" class="icon-btn" type="button" aria-label="Close">x</button>
+			</header>
+			<div id="listModalBody" class="modal-body list-modal-body"></div>
+		</div>
+	</section>
+
+	<template id="postTemplate">
+		<article class="card post-item">
+			<header class="post-head">
+				<div class="post-author">
+					<button class="avatar-btn" type="button"></button>
+					<div class="post-meta">
+						<button class="name-btn" type="button"></button>
+						<h3 class="post-title"></h3>
+						<span class="time"></span>
+					</div>
+				</div>
+				<div class="post-head-actions">
+					<button class="quick-follow-btn" type="button"></button>
+					<div class="post-menu-wrap">
+						<button class="post-menu-btn" type="button" aria-label="More options">⋮</button>
+						<div class="post-menu hidden">
+							<button class="menu-follow" type="button">Follow</button>
+							<button class="menu-unfollow" type="button">Unfollow</button>
+							<button class="menu-repost" type="button">Repost</button>
+							<button class="menu-hide" type="button">Hide post</button>
+							<button class="menu-block" type="button">Block user</button>
+						</div>
+					</div>
+				</div>
+			</header>
+			<p class="post-content"></p>
+			<section class="post-attachment hidden"></section>
+			<footer class="post-actions">
+				<button class="action-btn comment-btn" type="button">Comment</button>
+				<button class="action-btn repost-btn" type="button">Repost</button>
+				<button class="action-btn like-btn" type="button"></button>
+			</footer>
+			<div class="inline-comment-bar">
+				<input class="inline-comment-input" type="text" maxlength="280" placeholder="Write a comment">
+				<button class="inline-comment-send" type="button">Reply</button>
+			</div>
+		</article>
+	</template>
+
+	<script src="Twit.js"></script>
+</body>
+</html>
