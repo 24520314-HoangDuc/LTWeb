@@ -24,11 +24,14 @@ const MONGODB_URI = process.env.DB_CONNECTION_STRING || 'mongodb://USERNAME:PASS
 
 // MongoDB connection
 mongoose.connect(MONGODB_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true
+    connectTimeoutMS: 10000,
+    socketTimeoutMS: 45000,
+    serverSelectionTimeoutMS: 5000,
+    maxPoolSize: 10,
+    minPoolSize: 2
 })
-    .then(() => console.log('MongoDB connected'))
-    .catch(err => console.error('MongoDB connection error:', err));
+    .then(() => console.log('✓ MongoDB connected successfully'))
+    .catch(err => console.error('✗ MongoDB connection error:', err.message));
 
 const commentSchema = new mongoose.Schema({
     userId: { type: String, required: true },

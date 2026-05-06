@@ -1,0 +1,1 @@
+const MONGODB_URI = 'mongodb+srv://shuihuo1k6_db_user:WebDB12345678@cluster0.ehflgwd.mongodb.net/TwitRepTwit?retryWrites=true&w=majority';
