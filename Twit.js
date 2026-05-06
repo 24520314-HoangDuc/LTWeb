@@ -16,8 +16,8 @@ const state = {
 		{
 			id: 1,
 			userId: "ana",
-			title: "Card system idea",
-			content: "Trying a simple card system for my next app. Keep it clean, keep it fast.",
+			title: "Input spacing",
+			content: "Inputs should have more breathing room. Don't make the padding of input fields same as button.",
 			createdAt: new Date(Date.now() - 1000 * 60 * 15),
 			likedBy: new Set(["me"]),
 			attachment: null,
