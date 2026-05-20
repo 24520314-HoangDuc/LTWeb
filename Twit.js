@@ -35,6 +35,10 @@ const refs = {
 	imageViewerImg: document.getElementById("imageViewerImg"),
 	imageViewerTitle: document.getElementById("imageViewerTitle"),
 	imageViewerCaption: document.getElementById("imageViewerCaption"),
+	imageViewerCounter: document.getElementById("imageViewerCounter"),
+	imageViewerNav: document.querySelector(".image-viewer-nav"),
+	prevImageBtn: document.getElementById("prevImageBtn"),
+	nextImageBtn: document.getElementById("nextImageBtn"),
 	closeImageViewerBtn: document.getElementById("closeImageViewerBtn"),
 	closeRepostBtn: document.getElementById("closeRepostBtn"),
 	repostTitle: document.getElementById("repostTitle"),
@@ -95,20 +99,82 @@ function openConfirmDialog(message, action) {
 	refs.confirmModal.setAttribute("aria-hidden", "false");
 }
 
-function openImageViewer(src, title, caption = "") {
-	if (!src) {
+function normalizeImageItem(item) {
+	if (!item) {
+		return null;
+	}
+
+	if (typeof item === "string") {
+		return { src: item, title: "Preview image", caption: "" };
+	}
+
+	if (item.src) {
+		return {
+			src: item.src,
+			title: item.title || "Preview image",
+			caption: item.caption || ""
+		};
+	}
+
+	return null;
+}
+
+function updateImageViewer() {
+	if (!state.activeImageViewer || !state.activeImageViewer.images.length) {
 		return;
 	}
 
-	state.activeImageViewer = { src, title, caption };
+	const current = state.activeImageViewer.images[state.activeImageViewer.index];
+	refs.imageViewerTitle.textContent = current.title || state.activeImageViewer.title || "Image preview";
+	refs.imageViewerCaption.textContent = current.caption || state.activeImageViewer.caption || "";
+	refs.imageViewerImg.src = current.src;
+	refs.imageViewerImg.alt = current.title || state.activeImageViewer.title || "Preview image";
+	refs.imageViewerImg.style.transform = `scale(${state.imageViewerScale})`;
+	refs.imageViewerCounter.textContent = `${state.activeImageViewer.index + 1} / ${state.activeImageViewer.images.length}`;
+	const hasMultipleImages = state.activeImageViewer.images.length > 1;
+	refs.imageViewerNav.classList.toggle("hidden", !hasMultipleImages);
+	refs.imageViewerCounter.classList.toggle("hidden", !hasMultipleImages);
+	refs.prevImageBtn.classList.toggle("hidden", !hasMultipleImages);
+	refs.nextImageBtn.classList.toggle("hidden", !hasMultipleImages);
+	refs.prevImageBtn.disabled = state.activeImageViewer.index === 0;
+	refs.nextImageBtn.disabled = state.activeImageViewer.index >= state.activeImageViewer.images.length - 1;
+	refs.imageViewerModal.classList.toggle("has-gallery", hasMultipleImages);
+}
+
+function openImageViewer(images, startIndex = 0, title = "Image preview", caption = "") {
+	const normalizedImages = (Array.isArray(images) ? images : [images])
+		.map(normalizeImageItem)
+		.filter(Boolean);
+
+	if (normalizedImages.length === 0) {
+		return;
+	}
+
+	const safeIndex = Math.min(Math.max(Number(startIndex) || 0, 0), normalizedImages.length - 1);
+	state.activeImageViewer = {
+		images: normalizedImages,
+		index: safeIndex,
+		title,
+		caption
+	};
 	state.imageViewerScale = 1;
-	refs.imageViewerTitle.textContent = title || "Image preview";
-	refs.imageViewerCaption.textContent = caption || "";
-	refs.imageViewerImg.src = src;
-	refs.imageViewerImg.alt = title || "Preview image";
 	refs.imageViewerImg.style.transform = "scale(1)";
+	updateImageViewer();
 	refs.imageViewerModal.classList.remove("hidden");
 	refs.imageViewerModal.setAttribute("aria-hidden", "false");
+}
+
+function moveImageViewer(direction) {
+	if (!state.activeImageViewer || state.activeImageViewer.images.length <= 1) {
+		return;
+	}
+
+	const totalImages = state.activeImageViewer.images.length;
+	const nextIndex = (state.activeImageViewer.index + direction + totalImages) % totalImages;
+
+	state.activeImageViewer.index = nextIndex;
+	state.imageViewerScale = 1;
+	updateImageViewer();
 }
 
 function setImageViewerScale(nextScale) {
@@ -558,16 +624,22 @@ function renderAttachment(container, post) {
 		const texts = post.attachments.filter(a => a.type === "text");
 
 		if (images.length > 0) {
+			const imageGallery = images.map(img => ({
+				src: img.url,
+				title: img.name,
+				caption: img.name
+			}));
 			const grid = document.createElement("div");
 			grid.className = "attachment-images-grid";
 			images.forEach(img => {
+				const imageIndex = images.indexOf(img);
 				const img_el = document.createElement("img");
 				img_el.src = img.url;
 				img_el.alt = img.name;
 				img_el.className = "attachment-image";
 				img_el.addEventListener("click", event => {
 					event.stopPropagation();
-					openImageViewer(img.url, img.name, "Tap outside or press Esc to close");
+					openImageViewer(imageGallery, imageIndex, "Image preview", "Tap outside or press Esc to close");
 				});
 				grid.appendChild(img_el);
 			});
@@ -616,7 +688,13 @@ function renderAttachment(container, post) {
 		image.className = "attachment-image";
 		image.addEventListener("click", event => {
 			event.stopPropagation();
-			openImageViewer(post.attachment.url, post.attachment.name, "Tap outside or press Esc to close");
+			openImageViewer([
+				{
+					src: post.attachment.url,
+					title: post.attachment.name,
+					caption: post.attachment.name
+				}
+			], 0, post.attachment.name || "Image preview", "Tap outside or press Esc to close");
 		});
 		container.appendChild(image);
 		return;
@@ -1435,6 +1513,8 @@ function bindEvents() {
 	});
 
 	refs.closeRepostBtn.addEventListener("click", closeRepostModal);
+	refs.prevImageBtn.addEventListener("click", () => moveImageViewer(-1));
+	refs.nextImageBtn.addEventListener("click", () => moveImageViewer(1));
 	refs.imageViewerModal.addEventListener("wheel", event => {
 		if (!isModalOpen(refs.imageViewerModal)) {
 			return;
@@ -1650,6 +1730,22 @@ function bindEvents() {
 		if (event.key === "Enter" && isModalOpen(refs.confirmModal)) {
 			event.preventDefault();
 			runConfirmAction();
+			return;
+		}
+
+		if (!isModalOpen(refs.imageViewerModal)) {
+			return;
+		}
+
+		if (event.key === "ArrowLeft") {
+			event.preventDefault();
+			moveImageViewer(-1);
+			return;
+		}
+
+		if (event.key === "ArrowRight") {
+			event.preventDefault();
+			moveImageViewer(1);
 		}
 	});
 }

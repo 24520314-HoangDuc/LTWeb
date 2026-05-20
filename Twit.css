@@ -678,6 +678,43 @@ button:focus {
 	color: #f4f8ff;
 }
 
+.image-viewer-nav {
+	display: inline-flex;
+	align-items: center;
+	gap: 10px;
+	margin-left: auto;
+	margin-right: 8px;
+	color: #f4f8ff;
+}
+
+.image-viewer-nav.hidden {
+	display: none;
+}
+
+.image-nav-btn {
+	width: 38px;
+	height: 38px;
+	padding: 0;
+	border-radius: 999px;
+	background: rgba(238, 245, 255, 0.12);
+	color: #f4f8ff;
+	font-size: 28px;
+	line-height: 1;
+}
+
+.image-nav-btn:disabled {
+	opacity: 0.35;
+	cursor: not-allowed;
+}
+
+.image-viewer-counter {
+	min-width: 48px;
+	text-align: center;
+	font-size: 13px;
+	font-weight: 700;
+	opacity: 0.9;
+}
+
 .image-viewer-caption {
 	margin: 4px 0 0;
 	font-size: 13px;
