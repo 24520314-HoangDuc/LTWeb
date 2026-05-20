@@ -5,6 +5,59 @@ const users = {
 	linh: { id: "linh", name: "Linh Vo", username: "linh_media", bio: "Stories, clips, and quick notes.", color: "#2a9d8f" }
 };
 
+// ====== CACHING SYSTEM ======
+const CACHE_CONFIG = {
+	POSTS_KEY: 'twit_posts_cache',
+	POSTS_TIMESTAMP_KEY: 'twit_posts_cache_time',
+	TTL: 5 * 60 * 1000 // 5 minutes in milliseconds
+};
+
+function getCachedPosts() {
+	try {
+		const cached = localStorage.getItem(CACHE_CONFIG.POSTS_KEY);
+		const timestamp = localStorage.getItem(CACHE_CONFIG.POSTS_TIMESTAMP_KEY);
+		
+		if (!cached || !timestamp) {
+			return null;
+		}
+		
+		const now = Date.now();
+		const cacheAge = now - parseInt(timestamp);
+		
+		if (cacheAge > CACHE_CONFIG.TTL) {
+			// Cache expired, remove it
+			clearPostsCache();
+			return null;
+		}
+		
+		console.log(`✓ Loading posts from cache (age: ${(cacheAge / 1000).toFixed(1)}s)`);
+		return JSON.parse(cached);
+	} catch (error) {
+		console.error('Cache read error:', error);
+		return null;
+	}
+}
+
+function setPostsCache(posts) {
+	try {
+		localStorage.setItem(CACHE_CONFIG.POSTS_KEY, JSON.stringify(posts));
+		localStorage.setItem(CACHE_CONFIG.POSTS_TIMESTAMP_KEY, Date.now().toString());
+		console.log(`✓ Posts cached (${posts.length} items)`);
+	} catch (error) {
+		console.error('Cache write error:', error);
+	}
+}
+
+function clearPostsCache() {
+	try {
+		localStorage.removeItem(CACHE_CONFIG.POSTS_KEY);
+		localStorage.removeItem(CACHE_CONFIG.POSTS_TIMESTAMP_KEY);
+		console.log('✓ Posts cache cleared');
+	} catch (error) {
+		console.error('Cache clear error:', error);
+	}
+}
+
 const state = {
 	currentUserId: "me",
 	selectedProfileId: "me",
@@ -240,17 +293,21 @@ async function requestJson(path, options = {}) {
 }
 
 async function togglePostLike(postId) {
-	return requestJson(`/posts/${postId}/like`, {
+	const result = await requestJson(`/posts/${postId}/like`, {
 		method: "POST",
 		body: JSON.stringify({ userId: state.currentUserId })
 	});
+	clearPostsCache();
+	return result;
 }
 
 async function toggleCommentLike(postId, commentId) {
-	return requestJson(`/posts/${postId}/comments/${commentId}/like`, {
+	const result = await requestJson(`/posts/${postId}/comments/${commentId}/like`, {
 		method: "POST",
 		body: JSON.stringify({ userId: state.currentUserId })
 	});
+	clearPostsCache();
+	return result;
 }
 
 function mapComment(comment) {
@@ -349,22 +406,33 @@ async function loadPostsFromMongo() {
 	state.loadError = "";
 	renderPosts();
 	try {
-		const posts = await requestJson("/posts", { method: "GET" });
-		state.posts = Array.isArray(posts) ? posts.map(mapPost) : [];
-		
-		console.log(`[LOAD] Loaded ${state.posts.length} posts from database`);
-		state.posts.forEach((post, i) => {
-			if (post.attachments && post.attachments.length > 0) {
-				console.log(`  Post ${i} (${post.id}): ${post.attachments.length} attachment(s)`);
-				post.attachments.forEach((att, j) => {
-					const size = att.url ? (att.url.length / 1024 / 1024).toFixed(2) + 'MB' : 
-								(att.text ? (att.text.length / 1024).toFixed(2) + 'KB' : '0B');
-					console.log(`    [${j}] ${att.type}: ${att.name} (${size})`);
-				});
-			}
-		});
-		
-		normalizeComments();
+		// Check cache first
+		const cachedPosts = getCachedPosts();
+		if (cachedPosts) {
+			state.posts = Array.isArray(cachedPosts) ? cachedPosts.map(mapPost) : [];
+			console.log(`[LOAD] Loaded ${state.posts.length} posts from cache`);
+			normalizeComments();
+		} else {
+			// Fetch from API if cache miss or expired
+			const posts = await requestJson("/posts", { method: "GET" });
+			state.posts = Array.isArray(posts) ? posts.map(mapPost) : [];
+			
+			console.log(`[LOAD] Loaded ${state.posts.length} posts from database`);
+			state.posts.forEach((post, i) => {
+				if (post.attachments && post.attachments.length > 0) {
+					console.log(`  Post ${i} (${post.id}): ${post.attachments.length} attachment(s)`);
+					post.attachments.forEach((att, j) => {
+						const size = att.url ? (att.url.length / 1024 / 1024).toFixed(2) + 'MB' : 
+									(att.text ? (att.text.length / 1024).toFixed(2) + 'KB' : '0B');
+						console.log(`    [${j}] ${att.type}: ${att.name} (${size})`);
+					});
+				}
+			});
+			
+			// Cache the posts
+			setPostsCache(posts);
+			normalizeComments();
+		}
 	} catch (error) {
 		state.loadError = error.message;
 		state.posts = [];
@@ -565,6 +633,7 @@ async function addCommentToPost(postId, text, parentId = null) {
 				parentId
 			})
 		});
+		clearPostsCache();
 		syncPostFromServer(updatedPost);
 		return true;
 	} catch (error) {
@@ -579,6 +648,7 @@ async function deletePost(postId) {
 			method: "DELETE",
 			body: JSON.stringify({ userId: state.currentUserId })
 		});
+		clearPostsCache();
 		state.posts = state.posts.filter(post => post.id !== postId);
 		state.hiddenPostIds.delete(postId);
 		if (state.activeDetailPostId === postId) {
@@ -1275,6 +1345,7 @@ async function createRepost() {
 				content
 			})
 		});
+		clearPostsCache();
 		syncPostFromServer(created);
 		closeRepostModal();
 		state.viewMode = "home";
@@ -1411,6 +1482,7 @@ async function createPost() {
 		});
 		
 		console.log("Post created successfully:", created);
+		clearPostsCache();
 		syncPostFromServer(created);
 		resetComposer();
 		closeComposer();

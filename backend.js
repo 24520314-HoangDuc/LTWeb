@@ -170,14 +170,73 @@ relationSchema.index({ ownerId: 1, targetId: 1, type: 1 }, { unique: true });
 
 const Relation = mongoose.model('Relation', relationSchema);
 
+// ====== CACHING SYSTEM ======
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes cache duration
+const cache = {
+    posts: null,
+    postsTimestamp: 0,
+    relations: null,
+    relationsTimestamp: 0
+};
+
+function invalidatePostsCache() {
+    cache.posts = null;
+    cache.postsTimestamp = 0;
+    console.log('✓ Posts cache invalidated');
+}
+
+function invalidateRelationsCache() {
+    cache.relations = null;
+    cache.relationsTimestamp = 0;
+    console.log('✓ Relations cache invalidated');
+}
+
+function getCachedPosts() {
+    const now = Date.now();
+    if (cache.posts && (now - cache.postsTimestamp) < CACHE_TTL) {
+        console.log('✓ Returning posts from cache');
+        return cache.posts;
+    }
+    return null;
+}
+
+function getCachedRelations() {
+    const now = Date.now();
+    if (cache.relations && (now - cache.relationsTimestamp) < CACHE_TTL) {
+        console.log('✓ Returning relations from cache');
+        return cache.relations;
+    }
+    return null;
+}
+
+function setPostsCache(posts) {
+    cache.posts = posts;
+    cache.postsTimestamp = Date.now();
+    console.log('✓ Posts cached');
+}
+
+function setRelationsCache(relations) {
+    cache.relations = relations;
+    cache.relationsTimestamp = Date.now();
+    console.log('✓ Relations cached');
+}
+
 app.get('/api/health', (_req, res) => {
     res.json({ ok: true });
 });
 
 app.get('/api/relations', async (_req, res) => {
     try {
+        // Check cache first
+        const cachedRelations = getCachedRelations();
+        if (cachedRelations) {
+            return res.json(cachedRelations);
+        }
+
         const relations = await Relation.find().sort({ createdAt: -1 }).lean();
-        res.json(relations.map(toRelationPacket));
+        const relationPackets = relations.map(toRelationPacket);
+        setRelationsCache(relationPackets);
+        res.json(relationPackets);
     } catch (err) {
         res.status(500).json({ message: 'Failed to load relations', error: err.message });
     }
@@ -223,8 +282,11 @@ app.post('/api/relations/toggle', async (req, res) => {
             }
         }
 
+        invalidateRelationsCache();
         const relations = await Relation.find().sort({ createdAt: -1 }).lean();
-        res.json(relations.map(toRelationPacket));
+        const relationPackets = relations.map(toRelationPacket);
+        setRelationsCache(relationPackets);
+        res.json(relationPackets);
     } catch (err) {
         res.status(500).json({ message: 'Failed to toggle relation', error: err.message });
     }
@@ -232,8 +294,16 @@ app.post('/api/relations/toggle', async (req, res) => {
 
 app.get('/api/posts', async (_req, res) => {
     try {
+        // Check cache first
+        const cachedPosts = getCachedPosts();
+        if (cachedPosts) {
+            return res.json(cachedPosts);
+        }
+
         const posts = await Post.find().sort({ createdAt: -1 }).lean();
-        res.json(posts.map(toPostPacket));
+        const postPackets = posts.map(toPostPacket);
+        setPostsCache(postPackets);
+        res.json(postPackets);
     } catch (err) {
         res.status(500).json({ message: 'Failed to load posts', error: err.message });
     }
@@ -301,6 +371,7 @@ app.post('/api/posts', async (req, res) => {
         console.log(`[POST] Post created with ID: ${newPost._id}`);
         console.log(`  Stored attachments: ${newPost.attachments ? newPost.attachments.length : 0}`);
 
+        invalidatePostsCache();
         sendPost(res, newPost, 201);
     } catch (err) {
         console.error('[POST ERROR]', err.message);
@@ -320,6 +391,7 @@ app.patch('/api/posts/:id', async (req, res) => {
             return res.status(404).json({ message: 'Post not found' });
         }
 
+        invalidatePostsCache();
         sendPost(res, post);
     } catch (err) {
         res.status(400).json({ message: 'Failed to update post', error: err.message });
@@ -344,6 +416,7 @@ app.delete('/api/posts/:id', async (req, res) => {
 
         await Post.findByIdAndDelete(req.params.id);
 
+        invalidatePostsCache();
         res.json({ message: 'Post deleted successfully' });
     } catch (err) {
         res.status(400).json({ message: 'Failed to delete post', error: err.message });
@@ -367,6 +440,7 @@ app.post('/api/posts/:id/comments', async (req, res) => {
         post.updatedAt = new Date();
         await post.save();
 
+        invalidatePostsCache();
         sendPost(res, post, 201);
     } catch (err) {
         res.status(500).json({ message: 'Failed to add comment', error: err.message });
@@ -396,6 +470,7 @@ app.patch('/api/posts/:postId/comments/:commentId', async (req, res) => {
         post.updatedAt = new Date();
         await post.save();
 
+        invalidatePostsCache();
         sendPost(res, post);
     } catch (err) {
         res.status(400).json({ message: 'Failed to update comment', error: err.message });
@@ -436,6 +511,7 @@ app.delete('/api/posts/:postId/comments/:commentId', async (req, res) => {
         post.updatedAt = new Date();
         await post.save();
 
+        invalidatePostsCache();
         sendPost(res, post);
     } catch (err) {
         res.status(400).json({ message: 'Failed to delete comment', error: err.message });
@@ -465,6 +541,7 @@ app.post('/api/posts/:id/like', async (req, res) => {
         post.updatedAt = new Date();
         await post.save();
 
+        invalidatePostsCache();
         sendPost(res, post);
     } catch (err) {
         res.status(500).json({ message: 'Failed to toggle like', error: err.message });
@@ -504,6 +581,7 @@ app.post('/api/posts/:postId/comments/:commentId/like', async (req, res) => {
         post.updatedAt = new Date();
         await post.save();
 
+        invalidatePostsCache();
         sendPost(res, post);
     } catch (err) {
         res.status(500).json({ message: 'Failed to toggle comment like', error: err.message });
@@ -533,6 +611,7 @@ app.post('/api/posts/:id/repost', async (req, res) => {
             }
         });
 
+        invalidatePostsCache();
         sendPost(res, repost, 201);
     } catch (err) {
         res.status(500).json({ message: 'Failed to create repost', error: err.message });
