@@ -39,6 +39,11 @@ function toAttachmentPacket(attachment) {
         return null;
     }
 
+    const hasContent = attachment.type || attachment.name || attachment.url || attachment.text || attachment.originalPostId;
+    if (!hasContent) {
+        return null;
+    }
+
     return {
         type: attachment.type || null,
         name: attachment.name || "",
@@ -66,6 +71,17 @@ function toPostPacket(post) {
 
 function sendPost(res, post, status = 200) {
     return res.status(status).json(toPostPacket(post));
+}
+
+function toRelationPacket(relation) {
+    return {
+        id: String(relation._id),
+        ownerId: relation.ownerId,
+        targetId: relation.targetId,
+        type: relation.type,
+        createdAt: relation.createdAt,
+        updatedAt: relation.updatedAt
+    };
 }
 
 // MongoDB connection
@@ -112,8 +128,76 @@ const postSchema = new mongoose.Schema({
 
 const Post = mongoose.model('Post', postSchema);
 
+const relationSchema = new mongoose.Schema({
+    ownerId: { type: String, required: true },
+    targetId: { type: String, required: true },
+    type: { type: String, enum: ['follow', 'block'], required: true },
+    createdAt: { type: Date, default: Date.now },
+    updatedAt: { type: Date, default: Date.now }
+});
+
+relationSchema.index({ ownerId: 1, targetId: 1, type: 1 }, { unique: true });
+
+const Relation = mongoose.model('Relation', relationSchema);
+
 app.get('/api/health', (_req, res) => {
     res.json({ ok: true });
+});
+
+app.get('/api/relations', async (_req, res) => {
+    try {
+        const relations = await Relation.find().sort({ createdAt: -1 }).lean();
+        res.json(relations.map(toRelationPacket));
+    } catch (err) {
+        res.status(500).json({ message: 'Failed to load relations', error: err.message });
+    }
+});
+
+app.post('/api/relations/toggle', async (req, res) => {
+    try {
+        const { ownerId, targetId, type } = req.body;
+
+        if (!ownerId || !targetId || !type) {
+            return res.status(400).json({ message: 'ownerId, targetId and type are required' });
+        }
+
+        if (ownerId === targetId) {
+            return res.status(400).json({ message: 'You cannot relate to yourself' });
+        }
+
+        if (!['follow', 'block'].includes(type)) {
+            return res.status(400).json({ message: 'Invalid relation type' });
+        }
+
+        if (type === 'follow') {
+            const blocked = await Relation.findOne({ ownerId, targetId, type: 'block' });
+            if (blocked) {
+                return res.status(403).json({ message: 'Unblock the user before following' });
+            }
+
+            const existing = await Relation.findOne({ ownerId, targetId, type: 'follow' });
+            if (existing) {
+                await Relation.deleteOne({ _id: existing._id });
+            } else {
+                await Relation.create({ ownerId, targetId, type: 'follow' });
+            }
+        }
+
+        if (type === 'block') {
+            const existing = await Relation.findOne({ ownerId, targetId, type: 'block' });
+            if (existing) {
+                await Relation.deleteOne({ _id: existing._id });
+            } else {
+                await Relation.deleteMany({ ownerId, targetId, type: 'follow' });
+                await Relation.create({ ownerId, targetId, type: 'block' });
+            }
+        }
+
+        const relations = await Relation.find().sort({ createdAt: -1 }).lean();
+        res.json(relations.map(toRelationPacket));
+    } catch (err) {
+        res.status(500).json({ message: 'Failed to toggle relation', error: err.message });
+    }
 });
 
 app.get('/api/posts', async (_req, res) => {
@@ -178,10 +262,21 @@ app.patch('/api/posts/:id', async (req, res) => {
 
 app.delete('/api/posts/:id', async (req, res) => {
     try {
-        const deleted = await Post.findByIdAndDelete(req.params.id);
-        if (!deleted) {
+        const { userId } = req.body;
+        if (!userId) {
+            return res.status(400).json({ message: 'userId is required' });
+        }
+
+        const post = await Post.findById(req.params.id);
+        if (!post) {
             return res.status(404).json({ message: 'Post not found' });
         }
+
+        if (String(post.userId) !== String(userId)) {
+            return res.status(403).json({ message: 'You can only delete your own post' });
+        }
+
+        await Post.findByIdAndDelete(req.params.id);
 
         res.json({ message: 'Post deleted successfully' });
     } catch (err) {

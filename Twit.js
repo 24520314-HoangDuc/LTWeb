@@ -12,6 +12,7 @@ const state = {
 	following: new Set(),
 	hiddenPostIds: new Set(),
 	blockedUserIds: new Set(),
+	relations: [],
 	posts: [],
 	replyModeByPost: new Map(),
 	activeRepostPostId: null,
@@ -153,6 +154,7 @@ function mapComment(comment) {
 
 function mapPost(post) {
 	const attachment = post.attachment
+		&& (post.attachment.type || post.attachment.name || post.attachment.url || post.attachment.text || post.attachment.originalPostId)
 		? {
 			type: post.attachment.type || null,
 			name: post.attachment.name || "",
@@ -173,6 +175,31 @@ function mapPost(post) {
 		attachment,
 		replies: (post.replies || []).map(mapComment)
 	};
+}
+
+function mapRelation(relation) {
+	return {
+		id: String(relation.id || relation._id),
+		ownerId: relation.ownerId,
+		targetId: relation.targetId,
+		type: relation.type,
+		createdAt: relation.createdAt ? new Date(relation.createdAt) : new Date(),
+		updatedAt: relation.updatedAt ? new Date(relation.updatedAt) : new Date()
+	};
+}
+
+function syncRelationState() {
+	state.following = new Set(
+		state.relations
+			.filter(relation => relation.ownerId === state.currentUserId && relation.type === "follow")
+			.map(relation => relation.targetId)
+	);
+	state.blockedUserIds = new Set(
+		state.relations
+			.filter(relation => relation.ownerId === state.currentUserId && relation.type === "block")
+			.map(relation => relation.targetId)
+	);
+	state.blockedUserIds.forEach(userId => state.following.delete(userId));
 }
 
 function syncPostFromServer(postData) {
@@ -201,6 +228,19 @@ async function loadPostsFromMongo() {
 		state.isLoadingPosts = false;
 		rerender();
 	}
+}
+
+async function loadRelationsFromMongo() {
+	try {
+		const relations = await requestJson("/relations", { method: "GET" });
+		state.relations = Array.isArray(relations) ? relations.map(mapRelation) : [];
+		syncRelationState();
+	} catch (error) {
+		console.error("Failed to load relations:", error);
+		state.relations = [];
+		syncRelationState();
+	}
+	rerender();
 }
 
 function normalizeComments() {
@@ -238,17 +278,13 @@ function countUserLikes(userId) {
 }
 
 function countFollowers(userId) {
-	if (userId === state.currentUserId) {
-		return state.following.size;
-	}
-	return state.following.has(userId) ? 1 : 0;
+	return state.relations.filter(relation => relation.type === "follow" && relation.targetId === userId).length;
 }
 
 function getFollowerIds(userId) {
-	if (userId === state.currentUserId) {
-		return Array.from(state.following);
-	}
-	return state.following.has(userId) ? [state.currentUserId] : [];
+	return state.relations
+		.filter(relation => relation.type === "follow" && relation.targetId === userId)
+		.map(relation => relation.ownerId);
 }
 
 function openListModal(title, userIds, options = {}) {
@@ -279,8 +315,8 @@ function openListModal(title, userIds, options = {}) {
 
 			const unblockBtn = row.querySelector("[data-unblock-user]");
 			if (unblockBtn) {
-				unblockBtn.addEventListener("click", () => {
-					state.blockedUserIds.delete(userId);
+				unblockBtn.addEventListener("click", async () => {
+					await toggleBlock(userId);
 					renderProfileView();
 					openListModal(title, userIds.filter(id => id !== userId), options);
 					rerender();
@@ -392,6 +428,24 @@ async function addCommentToPost(postId, text, parentId = null) {
 	}
 }
 
+async function deletePost(postId) {
+	try {
+		await requestJson(`/posts/${postId}`, {
+			method: "DELETE",
+			body: JSON.stringify({ userId: state.currentUserId })
+		});
+		state.posts = state.posts.filter(post => post.id !== postId);
+		state.hiddenPostIds.delete(postId);
+		if (state.activeDetailPostId === postId) {
+			closePostDetail();
+		}
+		rerender();
+	} catch (error) {
+		console.error("Failed to delete post:", error);
+		showErrorNotification("Unable to delete this post.");
+	}
+}
+
 function getCommentChildren(post, parentId) {
 	return (post.replies || []).filter(reply => reply.parentId === parentId);
 }
@@ -416,7 +470,7 @@ function deleteComment(postId, commentId) {
 
 function renderAttachment(container, post) {
 	container.innerHTML = "";
-	if (!post.attachment) {
+	if (!post.attachment || (!post.attachment.type && !post.attachment.name && !post.attachment.url && !post.attachment.text && !post.attachment.originalPostId)) {
 		container.classList.add("hidden");
 		return;
 	}
@@ -585,13 +639,7 @@ function renderProfileView() {
 				}
 
 				if (action === "block-toggle") {
-					if (state.blockedUserIds.has(user.id)) {
-						state.blockedUserIds.delete(user.id);
-					} else {
-						state.blockedUserIds.add(user.id);
-						state.following.delete(user.id);
-					}
-					rerender();
+					toggleBlock(user.id);
 				}
 			});
 		});
@@ -653,11 +701,14 @@ function renderPosts() {
 		const menuRepost = node.querySelector(".menu-repost");
 		const menuHide = node.querySelector(".menu-hide");
 		const menuBlock = node.querySelector(".menu-block");
+		const menuDelete = node.querySelector(".menu-delete");
 
 		if (post.userId === state.currentUserId) {
 			menuFollow.classList.add("hidden");
 			menuUnfollow.classList.add("hidden");
 			menuBlock.classList.add("hidden");
+		} else {
+			menuDelete.classList.add("hidden");
 		}
 
 		const menuFollowing = state.following.has(post.userId);
@@ -692,9 +743,13 @@ function renderPosts() {
 		});
 
 		menuBlock.addEventListener("click", () => {
-			state.blockedUserIds.add(post.userId);
-			state.following.delete(post.userId);
-			rerender();
+			toggleBlock(post.userId);
+		});
+
+		menuDelete.addEventListener("click", () => {
+			openConfirmDialog("Delete this post? This cannot be undone.", () => {
+				deletePost(post.id);
+			});
 		});
 
 		node.querySelector(".post-title").textContent = post.title || "Untitled";
@@ -880,6 +935,7 @@ function openPostDetail(postId) {
 			<button class="action-btn detail-comment-btn" type="button">Comment</button>
 			<button class="action-btn detail-repost-btn" type="button">Repost</button>
 			<button class="action-btn detail-like-btn ${post.likedBy.has(state.currentUserId) ? "liked" : ""}" type="button">${post.likedBy.has(state.currentUserId) ? "Liked" : "Like"} (${post.likedBy.size})</button>
+			${post.userId === state.currentUserId ? '<button class="action-btn detail-delete-btn" type="button">Delete post</button>' : ""}
 		</footer>
 		<div class="detail-comment-bar">
 			<input class="detail-comment-input" type="text" maxlength="280" placeholder="Write a comment">
@@ -899,6 +955,7 @@ function openPostDetail(postId) {
 	const detailCommentBtn = refs.postDetailCard.querySelector(".detail-comment-btn");
 	const detailRepostBtn = refs.postDetailCard.querySelector(".detail-repost-btn");
 	const detailLikeBtn = refs.postDetailCard.querySelector(".detail-like-btn");
+	const detailDeleteBtn = refs.postDetailCard.querySelector(".detail-delete-btn");
 	const detailCommentInput = refs.postDetailCard.querySelector(".detail-comment-input");
 	const detailCommentSend = refs.postDetailCard.querySelector(".detail-comment-send");
 
@@ -922,6 +979,14 @@ function openPostDetail(postId) {
 				console.error("Failed to toggle post like:", error);
 			});
 	});
+
+	if (detailDeleteBtn) {
+		detailDeleteBtn.addEventListener("click", () => {
+			openConfirmDialog("Delete this post? This cannot be undone.", () => {
+				deletePost(post.id);
+			});
+		});
+	}
 
 	detailCommentSend.addEventListener("click", () => {
 			addCommentToPost(post.id, detailCommentInput.value, null).then(sent => {
@@ -1013,13 +1078,47 @@ function selectProfile(userId, mode = "profile") {
 	rerender();
 }
 
-function toggleFollow(userId) {
-	if (state.following.has(userId)) {
-		state.following.delete(userId);
-	} else {
-		state.following.add(userId);
+async function toggleFollow(userId) {
+	if (state.blockedUserIds.has(userId)) {
+		showErrorNotification("Unblock the user before following.");
+		return;
 	}
-	rerender();
+
+	try {
+		await requestJson("/relations/toggle", {
+			method: "POST",
+			body: JSON.stringify({
+				ownerId: state.currentUserId,
+				targetId: userId,
+				type: "follow"
+			})
+		});
+		await loadRelationsFromMongo();
+		rerender();
+	} catch (error) {
+		const errorMessage = error instanceof Error ? error.message : String(error || "Unknown error");
+		console.error("Failed to toggle follow:", error);
+		showErrorNotification(`Unable to update follow: ${errorMessage}`);
+	}
+}
+
+async function toggleBlock(userId) {
+	try {
+		await requestJson("/relations/toggle", {
+			method: "POST",
+			body: JSON.stringify({
+				ownerId: state.currentUserId,
+				targetId: userId,
+				type: "block"
+			})
+		});
+		await loadRelationsFromMongo();
+		rerender();
+	} catch (error) {
+		const errorMessage = error instanceof Error ? error.message : String(error || "Unknown error");
+		console.error("Failed to toggle block:", error);
+		showErrorNotification(`Unable to update block: ${errorMessage}`);
+	}
 }
 
 function resetComposer() {
@@ -1032,6 +1131,11 @@ function resetComposer() {
 }
 
 function openComposer() {
+	refs.postTitle.value = "";
+	refs.postInput.value = "";
+	refs.postAttachment.value = "";
+	refs.attachmentName.textContent = "No file selected";
+	refs.charCount.textContent = "0/500";
 	clearComposerError();
 	refs.composerModal.classList.remove("hidden");
 	refs.composerModal.setAttribute("aria-hidden", "false");
@@ -1300,4 +1404,5 @@ function rerender() {
 
 bindEvents();
 rerender();
+loadRelationsFromMongo();
 loadPostsFromMongo();
