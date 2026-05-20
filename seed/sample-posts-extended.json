@@ -1,0 +1,162 @@
+[
+  {
+    "seedKey": "me-ext-001",
+    "userId": "me",
+    "title": "React hooks deep dive",
+    "content": "Been diving into custom hooks lately. They're a game changer for component logic reuse.",
+    "likedBy": ["ana", "khan"],
+    "replies": []
+  },
+  {
+    "seedKey": "me-ext-002",
+    "userId": "me",
+    "title": "CSS Grid vs Flexbox",
+    "content": "For complex layouts, Grid is king. But Flexbox is still the best for 1D layouts.",
+    "likedBy": ["linh"],
+    "replies": []
+  },
+  {
+    "seedKey": "me-ext-003",
+    "userId": "me",
+    "title": "MongoDB aggregation pipelines",
+    "content": "Learning to think in stages with aggregation. It's powerful once you get the hang of it.",
+    "likedBy": ["khan", "ana"],
+    "replies": []
+  },
+  {
+    "seedKey": "me-ext-004",
+    "userId": "me",
+    "title": "Debugging frontend state",
+    "content": "Redux DevTools is a lifesaver. Can't imagine managing complex state without it.",
+    "likedBy": ["linh"],
+    "replies": []
+  },
+  {
+    "seedKey": "me-ext-005",
+    "userId": "me",
+    "title": "Planning my next project",
+    "content": "Thinking about building a full-stack app with authentication. Should be fun.",
+    "likedBy": [],
+    "replies": []
+  },
+  {
+    "seedKey": "ana-ext-001",
+    "userId": "ana",
+    "title": "Designing with constraints",
+    "content": "Working with limited colors forces you to be more intentional with design choices.",
+    "likedBy": ["me", "khan"],
+    "replies": []
+  },
+  {
+    "seedKey": "ana-ext-002",
+    "userId": "ana",
+    "title": "Typography matters",
+    "content": "Spent hours tweaking font sizes and line heights. Small details that make a big difference.",
+    "likedBy": ["me"],
+    "replies": []
+  },
+  {
+    "seedKey": "ana-ext-003",
+    "userId": "ana",
+    "title": "Dark mode implementation",
+    "content": "Dark mode isn't just a trend—it's essential accessibility. Using CSS custom properties.",
+    "likedBy": ["me", "linh"],
+    "replies": []
+  },
+  {
+    "seedKey": "ana-ext-004",
+    "userId": "ana",
+    "title": "User testing insights",
+    "content": "Tested the new interface with real users today. Got some valuable feedback.",
+    "likedBy": ["khan"],
+    "replies": []
+  },
+  {
+    "seedKey": "ana-ext-005",
+    "userId": "ana",
+    "title": "Prototyping in Figma",
+    "content": "Figma's interactive components are game-changing for design systems.",
+    "likedBy": ["me", "linh"],
+    "replies": []
+  },
+  {
+    "seedKey": "khan-ext-001",
+    "userId": "khan",
+    "title": "JavaScript performance tips",
+    "content": "Debouncing and throttling can dramatically improve app responsiveness.",
+    "likedBy": ["me"],
+    "replies": []
+  },
+  {
+    "seedKey": "khan-ext-002",
+    "userId": "khan",
+    "title": "Testing strategies",
+    "content": "Unit tests are good, but integration tests catch the real issues.",
+    "likedBy": ["me", "ana"],
+    "replies": []
+  },
+  {
+    "seedKey": "khan-ext-003",
+    "userId": "khan",
+    "title": "API design best practices",
+    "content": "RESTful APIs are clean, but GraphQL gives you more flexibility.",
+    "likedBy": ["me"],
+    "replies": []
+  },
+  {
+    "seedKey": "khan-ext-004",
+    "userId": "khan",
+    "title": "Working with async/await",
+    "content": "Promises are powerful, but async/await makes the code so much cleaner.",
+    "likedBy": ["me", "ana", "linh"],
+    "replies": []
+  },
+  {
+    "seedKey": "khan-ext-005",
+    "userId": "khan",
+    "title": "Learning new frameworks",
+    "content": "Switching between frameworks teaches you what's fundamental to web dev.",
+    "likedBy": ["ana"],
+    "replies": []
+  },
+  {
+    "seedKey": "linh-ext-001",
+    "userId": "linh",
+    "title": "Video editing workflow",
+    "content": "Switched to DaVinci Resolve. The color grading tools are incredible.",
+    "likedBy": ["me"],
+    "replies": []
+  },
+  {
+    "seedKey": "linh-ext-002",
+    "userId": "linh",
+    "title": "Content strategy for short form",
+    "content": "TikTok changed how we think about video. Hook in the first frame.",
+    "likedBy": ["me", "ana"],
+    "replies": []
+  },
+  {
+    "seedKey": "linh-ext-003",
+    "userId": "linh",
+    "title": "Audio quality matters",
+    "content": "Bad audio ruins good video. Invested in a decent microphone finally.",
+    "likedBy": ["me"],
+    "replies": []
+  },
+  {
+    "seedKey": "linh-ext-004",
+    "userId": "linh",
+    "title": "Growing an audience",
+    "content": "Consistency matters more than perfection. Post regularly, improve over time.",
+    "likedBy": ["me", "khan"],
+    "replies": []
+  },
+  {
+    "seedKey": "linh-ext-005",
+    "userId": "linh",
+    "title": "Storytelling through media",
+    "content": "Every frame should serve the story. Cut ruthlessly.",
+    "likedBy": ["ana"],
+    "replies": []
+  }
+]
