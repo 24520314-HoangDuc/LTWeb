@@ -2,12 +2,21 @@ const express = require('express');
 const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
 const dotenv = require('dotenv');
+const http = require('http');
+const socketIo = require('socket.io');
 
 dotenv.config();
 
 const path = require('path');
 
 const app = express();
+const server = http.createServer(app);
+const io = socketIo(server, {
+    cors: {
+        origin: "*",
+        methods: ["GET", "POST"]
+    }
+});
 app.use(bodyParser.json({ limit: '50mb' }));
 app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
 app.use((req, res, next) => {
@@ -221,6 +230,41 @@ function setRelationsCache(relations) {
     console.log('✓ Relations cached');
 }
 
+// ====== SOCKET.IO SETUP ======
+io.on('connection', (socket) => {
+    console.log(`✓ Client connected: ${socket.id}`);
+    
+    socket.on('disconnect', () => {
+        console.log(`✗ Client disconnected: ${socket.id}`);
+    });
+});
+
+// Broadcast functions
+function broadcastPostCreated(post) {
+    io.emit('post:created', toPostPacket(post));
+    console.log('📡 Broadcasting new post');
+}
+
+function broadcastPostUpdated(post) {
+    io.emit('post:updated', toPostPacket(post));
+    console.log('📡 Broadcasting post update');
+}
+
+function broadcastPostDeleted(postId) {
+    io.emit('post:deleted', { id: String(postId) });
+    console.log('📡 Broadcasting post deletion');
+}
+
+function broadcastCommentAdded(post) {
+    io.emit('comment:added', toPostPacket(post));
+    console.log('📡 Broadcasting new comment');
+}
+
+function broadcastPostLiked(post) {
+    io.emit('post:liked', toPostPacket(post));
+    console.log('📡 Broadcasting post like');
+}
+
 app.get('/api/health', (_req, res) => {
     res.json({ ok: true });
 });
@@ -372,6 +416,7 @@ app.post('/api/posts', async (req, res) => {
         console.log(`  Stored attachments: ${newPost.attachments ? newPost.attachments.length : 0}`);
 
         invalidatePostsCache();
+        broadcastPostCreated(newPost);
         sendPost(res, newPost, 201);
     } catch (err) {
         console.error('[POST ERROR]', err.message);
@@ -392,6 +437,7 @@ app.patch('/api/posts/:id', async (req, res) => {
         }
 
         invalidatePostsCache();
+        broadcastPostUpdated(post);
         sendPost(res, post);
     } catch (err) {
         res.status(400).json({ message: 'Failed to update post', error: err.message });
@@ -417,6 +463,7 @@ app.delete('/api/posts/:id', async (req, res) => {
         await Post.findByIdAndDelete(req.params.id);
 
         invalidatePostsCache();
+        broadcastPostDeleted(req.params.id);
         res.json({ message: 'Post deleted successfully' });
     } catch (err) {
         res.status(400).json({ message: 'Failed to delete post', error: err.message });
@@ -441,6 +488,7 @@ app.post('/api/posts/:id/comments', async (req, res) => {
         await post.save();
 
         invalidatePostsCache();
+        broadcastCommentAdded(post);
         sendPost(res, post, 201);
     } catch (err) {
         res.status(500).json({ message: 'Failed to add comment', error: err.message });
@@ -471,6 +519,7 @@ app.patch('/api/posts/:postId/comments/:commentId', async (req, res) => {
         await post.save();
 
         invalidatePostsCache();
+        broadcastPostUpdated(post);
         sendPost(res, post);
     } catch (err) {
         res.status(400).json({ message: 'Failed to update comment', error: err.message });
@@ -512,6 +561,7 @@ app.delete('/api/posts/:postId/comments/:commentId', async (req, res) => {
         await post.save();
 
         invalidatePostsCache();
+        broadcastPostUpdated(post);
         sendPost(res, post);
     } catch (err) {
         res.status(400).json({ message: 'Failed to delete comment', error: err.message });
@@ -542,6 +592,7 @@ app.post('/api/posts/:id/like', async (req, res) => {
         await post.save();
 
         invalidatePostsCache();
+        broadcastPostLiked(post);
         sendPost(res, post);
     } catch (err) {
         res.status(500).json({ message: 'Failed to toggle like', error: err.message });
@@ -582,6 +633,7 @@ app.post('/api/posts/:postId/comments/:commentId/like', async (req, res) => {
         await post.save();
 
         invalidatePostsCache();
+        broadcastPostUpdated(post);
         sendPost(res, post);
     } catch (err) {
         res.status(500).json({ message: 'Failed to toggle comment like', error: err.message });
@@ -612,6 +664,7 @@ app.post('/api/posts/:id/repost', async (req, res) => {
         });
 
         invalidatePostsCache();
+        broadcastPostCreated(repost);
         sendPost(res, repost, 201);
     } catch (err) {
         res.status(500).json({ message: 'Failed to create repost', error: err.message });
@@ -652,6 +705,7 @@ app.use((req, res) => {
     res.status(404).json({ message: 'Route not found' });
 });
 
-app.listen(PORT, () => {
+server.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
+    console.log(`Socket.io ready for real-time updates`);
 });

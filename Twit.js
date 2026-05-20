@@ -58,6 +58,81 @@ function clearPostsCache() {
 	}
 }
 
+// ====== SOCKET.IO CLIENT ======
+let socket = null;
+
+function initSocket() {
+	if (socket) return; // Already connected
+	
+	// Connect to Socket.io
+	socket = io(API_BASE.replace('/api', ''), {
+		reconnection: true,
+		reconnectionDelay: 1000,
+		reconnectionDelayMax: 5000,
+		reconnectionAttempts: 5
+	});
+
+	socket.on('connect', () => {
+		console.log('🔗 Socket connected:', socket.id);
+	});
+
+	socket.on('disconnect', () => {
+		console.log('🔌 Socket disconnected');
+	});
+
+	// Real-time post updates
+	socket.on('post:created', (post) => {
+		console.log('📨 New post received:', post.id);
+		clearPostsCache();
+		const mappedPost = mapPost(post);
+		state.posts.unshift(mappedPost);
+		rerender();
+	});
+
+	socket.on('post:updated', (post) => {
+		console.log('📨 Post updated:', post.id);
+		clearPostsCache();
+		const mappedPost = mapPost(post);
+		const index = state.posts.findIndex(p => p.id === post.id);
+		if (index >= 0) {
+			state.posts[index] = mappedPost;
+		}
+		rerender();
+	});
+
+	socket.on('post:deleted', (data) => {
+		console.log('📨 Post deleted:', data.id);
+		clearPostsCache();
+		state.posts = state.posts.filter(p => p.id !== data.id);
+		if (state.activeDetailPostId === data.id) {
+			closePostDetail();
+		}
+		rerender();
+	});
+
+	socket.on('comment:added', (post) => {
+		console.log('📨 New comment received:', post.id);
+		clearPostsCache();
+		const mappedPost = mapPost(post);
+		const index = state.posts.findIndex(p => p.id === post.id);
+		if (index >= 0) {
+			state.posts[index] = mappedPost;
+		}
+		rerender();
+	});
+
+	socket.on('post:liked', (post) => {
+		console.log('📨 Post liked:', post.id);
+		clearPostsCache();
+		const mappedPost = mapPost(post);
+		const index = state.posts.findIndex(p => p.id === post.id);
+		if (index >= 0) {
+			state.posts[index] = mappedPost;
+		}
+		rerender();
+	});
+}
+
 const state = {
 	currentUserId: "me",
 	selectedProfileId: "me",
@@ -1830,5 +1905,6 @@ function rerender() {
 
 bindEvents();
 rerender();
+initSocket();
 loadRelationsFromMongo();
 loadPostsFromMongo();
