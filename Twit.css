@@ -175,6 +175,17 @@ button:focus {
 	margin-top: 10px;
 }
 
+.composer-error {
+	margin-top: 10px;
+	padding: 10px 12px;
+	border-radius: 10px;
+	background: #fff2f2;
+	border: 1px solid rgba(205, 61, 61, 0.22);
+	color: var(--danger);
+	font-weight: 700;
+	line-height: 1.4;
+}
+
 .btn-primary {
 	border: 0;
 	background: linear-gradient(135deg, var(--accent), #24a1ea);

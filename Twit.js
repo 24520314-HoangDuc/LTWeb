@@ -9,7 +9,7 @@ const state = {
 	currentUserId: "me",
 	selectedProfileId: "me",
 	viewMode: "home",
-	following: new Set(["ana"]),
+	following: new Set(),
 	hiddenPostIds: new Set(),
 	blockedUserIds: new Set(),
 	posts: [],
@@ -50,6 +50,7 @@ const refs = {
 	postAttachment: document.getElementById("postAttachment"),
 	attachmentName: document.getElementById("attachmentName"),
 	charCount: document.getElementById("charCount"),
+	composerError: document.getElementById("composerError"),
 	createPostBtn: document.getElementById("createPostBtn"),
 	feedFilter: document.getElementById("feedFilter"),
 	feedList: document.getElementById("feedList"),
@@ -315,7 +316,7 @@ function renderMiniProfile() {
 		<p>${user.bio}</p>
 		<div class="row"><span>Posts</span><strong>${countUserPosts(user.id)}</strong></div>
 		<div class="row"><span>Followers</span><strong>${countFollowers(user.id)}</strong></div>
-		<div class="row"><span>Following by you</span><strong>${isMe ? "Your profile" : (isBlocked ? "Blocked" : (isFollowing ? "Following" : "Not following"))}</strong></div>
+		${isMe ? "" : `<div class="row"><span>Following by you</span><strong>${isBlocked ? "Blocked" : (isFollowing ? "Following" : "Not following")}</strong></div>`}
 		${isMe || isBlocked ? "" : `<button class="follow-btn ${isFollowing ? "following" : ""}" data-user="${user.id}" type="button">${isFollowing ? "Following" : "Follow"}</button>`}
 	`;
 
@@ -1013,9 +1014,11 @@ function resetComposer() {
 	refs.postAttachment.value = "";
 	refs.attachmentName.textContent = "No file selected";
 	refs.charCount.textContent = "0/500";
+	clearComposerError();
 }
 
 function openComposer() {
+	clearComposerError();
 	refs.composerModal.classList.remove("hidden");
 	refs.composerModal.setAttribute("aria-hidden", "false");
 }
@@ -1025,10 +1028,21 @@ function closeComposer() {
 	refs.composerModal.setAttribute("aria-hidden", "true");
 }
 
+function clearComposerError() {
+	refs.composerError.textContent = "";
+	refs.composerError.classList.add("hidden");
+}
+
+function showComposerError(message) {
+	refs.composerError.textContent = message;
+	refs.composerError.classList.remove("hidden");
+}
+
 async function createPost() {
 	const title = refs.postTitle.value.trim();
 	const content = refs.postInput.value.trim();
 	if (!title && !content) {
+		clearComposerError();
 		return;
 	}
 
@@ -1036,6 +1050,7 @@ async function createPost() {
 
 	async function finalizePost(attachment) {
 		try {
+			clearComposerError();
 			const created = await requestJson("/posts", {
 				method: "POST",
 				body: JSON.stringify({
@@ -1052,6 +1067,8 @@ async function createPost() {
 			refs.feedFilter.value = "all";
 			rerender();
 		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error || "Unknown error");
+			showComposerError(`Unable to post: ${errorMessage}`);
 			console.error("Failed to create post:", error);
 		}
 	}
