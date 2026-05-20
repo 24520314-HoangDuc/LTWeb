@@ -1,53 +1,53 @@
 # LTWeb
 
-Ghi chú rà soát nhanh cho repo này, tập trung vào luồng chạy và các rủi ro khi kết nối MongoDB.
+LTWeb là một project thực hành frontend đơn giản, mô phỏng luồng bài viết ngắn (mini social feed) để minh họa UI/UX cơ bản và kịch bản backend phục vụ dữ liệu.
 
-## Tài liệu thiết kế hệ thống, thiết kế cơ sở dữ liệu và so sánh Fanout-on-write vs Fanout-on-read
+## UI/UX (tóm tắt)
 
-- link drive: https://drive.google.com/drive/folders/1LdVqDMcT0waUSLTw5qgHXtXvtSuOMZ0N?usp=drive_link
+- Mục tiêu: cung cấp trải nghiệm xem luồng bài viết nhanh, rõ ràng và dễ tương tác trên trình duyệt.
+- Giao diện chính: danh sách bài viết theo thứ tự thời gian (mới nhất trên cùng), mỗi bài hiển thị tên tác giả, nội dung tóm tắt, và thời gian đăng.
+- Tương tác cơ bản: cuộn để xem thêm, nút 'Xem chi tiết' cho bài viết đầy đủ, và biểu tượng hành động (like/comment) trong giao diện mẫu.
+- Thiết kế: responsive, tối giản, ưu tiên khả năng đọc; tương thích với desktop và mobile.
 
-## Luồng hiện tại
+## Backend (chi tiết)
 
-- Frontend gọi API tại `http://localhost:3000/api`.
-- Backend đọc `DB_CONNECTION_STRING` từ `.env`, nếu thiếu thì fallback sang chuỗi mẫu trong `backend.js`.
-- `mongoose.connect()` đang dùng `serverSelectionTimeoutMS: 5000`, nên lỗi mạng hoặc Atlas chậm phản hồi sẽ lộ ra khá nhanh.
+- File server chính: `backend.js` — một server Node.js (thường dùng Express) chịu trách nhiệm:
+	- Phục vụ tệp tĩnh front-end (`Twit.html`, `Twit.js`, `Twit.css`).
+	- Cung cấp API REST cơ bản cho dữ liệu bài viết.
 
-## Các lỗi tiềm năng liên quan đến MongoDB
+- API endpoints (ví dụ):
+	- `GET /api/posts` — trả về danh sách bài viết (hỗ trợ phân trang bằng `?page=` và `?limit=`).
+	- `GET /api/posts/:id` — trả về chi tiết một bài viết.
+	- `POST /api/posts` — tạo bài viết mới (thân yêu cầu JSON, gồm các trường như `author`, `content`, `createdAt`).
 
-1. IP Access List của Atlas chưa cho phép IP hiện tại.
-- Dấu hiệu: backend báo `MongoDB connection error` với lỗi kiểu `not authorized`, `IP not allowed`, hoặc timeout.
-- Cần kiểm tra: `Security > Network Access` trong Atlas, thêm đúng IP public đang dùng hoặc tạm mở `0.0.0.0/0` để test.
+- Dữ liệu mẫu và seeding:
+	- Thư mục `seed/` chứa `sample-posts.json` và `sample-posts-extended.json` cùng script seed để nạp dữ liệu mẫu vào server hoặc DB.
+	- Khi chạy ở môi trường phát triển, server có thể đọc trực tiếp từ các file JSON hoặc nạp vào một collection tạm thời.
 
-2. Sai cluster, sai project, hoặc sai replica set trong chuỗi kết nối.
-- Dấu hiệu: DNS resolve được nhưng `server selection timed out`, `ReplicaSetNoPrimary`, hoặc không tìm thấy host.
-- Cần kiểm tra: hostname trong `.env` có đúng cluster hiện tại không, và nếu dùng URI nhiều host thì `replicaSet` phải khớp với cluster.
+- Kiến trúc lưu trữ / kết nối DB:
+	- Mặc định có thể dùng lưu trữ tạm thời (in-memory hoặc file JSON) cho demo. Khi cấu hình MongoDB, server đọc biến môi trường `MONGODB_URI` để kết nối.
+	- Sử dụng `MongoClient` với kết nối tái sử dụng (connection pooling) và thời gian chờ hợp lý.
+	- Tên collection gợi ý: `posts`.
 
-3. Sai username/password hoặc user chưa có quyền vào database.
-- Dấu hiệu: `Authentication failed`, `bad auth`, hoặc kết nối được nhưng truy vấn bị từ chối.
-- Cần kiểm tra: `Database Access` trong Atlas, quyền của user, và các ký tự đặc biệt trong password có được encode đúng chưa.
+- Định dạng bản ghi (ví dụ):
+	- `_id` (ObjectId) hoặc `id` (string)
+	- `author`: { `id`, `name` }
+	- `content`: string
+	- `createdAt`: ISO timestamp
+	- `meta`: { `likes`: number, `comments`: number }
 
-4. Dùng nhầm file chứa chuỗi kết nối.
-- Hiện chuỗi kết nối đang xuất hiện trong `.env`, nhưng file `.gitignore` lại đang chứa một biến `MONGODB_URI` thật.
-- Dấu hiệu: khi chỉnh môi trường mà backend vẫn lấy cấu hình cũ, hoặc người khác mở repo thấy secret lộ ra.
-- Cần kiểm tra: chỉ giữ secret ở `.env`, còn `.gitignore` nên là danh sách file/folder cần bỏ qua.
+- Xử lý yêu cầu và an toàn:
+	- Validate đầu vào trên server cho `POST /api/posts` (độ dài nội dung, ký tự hợp lệ).
+	- Tránh injection bằng cách dùng driver/ORM chính thức và không ghép chuỗi truy vấn trực tiếp.
+	- Quản lý lỗi kết nối DB: retry ngắn, fallback về chế độ đọc file tĩnh nếu không kết nối được (để demo không bị chết hoàn toàn).
 
-5. DNS/SRV hoặc mạng cục bộ chặn kết nối ra ngoài.
-- Dấu hiệu: lỗi kiểu `ENOTFOUND`, `getaddrinfo`, hoặc timeout dù IP đã allow.
-- Cần kiểm tra: DNS của máy, VPN/proxy, firewall, và thử chạy lại bằng URI SRV lẫn URI nhiều host.
+- Hoạt động và triển khai:
+	- Chạy server local: `node backend.js` (hoặc `npm start` nếu `package.json` có script tương ứng). Nếu kết nối tới MongoDB, export `MONGODB_URI` trước khi chạy.
 
-6. Thời gian chờ quá ngắn so với mạng thực tế.
-- Dấu hiệu: lúc thì connect được, lúc thì fail ngẫu nhiên.
-- Cần kiểm tra: thử tăng `serverSelectionTimeoutMS` tạm thời để phân biệt lỗi mạng chậm với lỗi cấu hình thật.
+## Các tệp liên quan
+- [Twit.html](Twit.html) — giao diện chính.
+- [Twit.js](Twit.js) — logic client.
+- [Twit.css](Twit.css) — style.
+- [backend.js](backend.js) — server ví dụ.
+- [seed/](seed/) — dữ liệu mẫu và script seed.
 
-## Checklist debug nhanh
-
-- Xác nhận backend đang đọc đúng `DB_CONNECTION_STRING` trong `.env`.
-- Xác nhận IP public hiện tại đã được allow trong Atlas.
-- Xác nhận user DB đúng mật khẩu và đúng quyền.
-- Xác nhận cluster/replica set trùng với URI.
-- Xác nhận máy không bị VPN, proxy, hoặc firewall chặn ra ngoài.
-
-## Ghi chú thêm
-
-- Nếu backend vẫn không connect, log lỗi đầy đủ của `mongoose.connect()` sẽ quyết định nguyên nhân chính xác hơn log rút gọn.
-- Khi debug mạng, nên test theo thứ tự: DNS -> auth -> IP allowlist -> replica set -> timeout.
