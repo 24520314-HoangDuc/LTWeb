@@ -2,6 +2,10 @@
 
 Ghi chú rà soát nhanh cho repo này, tập trung vào luồng chạy và các rủi ro khi kết nối MongoDB.
 
+## Tài liệu thiết kế hệ thống, thiết kế cơ sở dữ liệu và so sánh Fanout-on-write vs Fanout-on-read
+
+- link drive: https://drive.google.com/drive/folders/1LdVqDMcT0waUSLTw5qgHXtXvtSuOMZ0N?usp=drive_link
+
 ## Luồng hiện tại
 
 - Frontend gọi API tại `http://localhost:3000/api`.
