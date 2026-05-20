@@ -44,6 +44,16 @@ LTWeb là một project thực hành frontend đơn giản, mô phỏng luồng 
 - Hoạt động và triển khai:
 	- Chạy server local: `node backend.js` (hoặc `npm start` nếu `package.json` có script tương ứng). Nếu kết nối tới MongoDB, export `MONGODB_URI` trước khi chạy.
 
+## Chiến lược lập chỉ mục (Indexing)
+
+Mục tiêu của indexing trong project này là tối ưu các truy vấn thường gặp khi tải feed, xem trang cá nhân và quản lý quan hệ follow/block.
+
+- `posts.createdAt` giảm dần: giúp lấy bài mới nhất nhanh hơn khi hiển thị feed.
+- `posts.userId + posts.createdAt`: tối ưu các truy vấn lọc bài theo người dùng và sắp xếp theo thời gian.
+- `relations.ownerId + relations.targetId + relations.type`: đảm bảo mỗi cặp quan hệ follow/block là duy nhất, tránh tạo bản ghi trùng.
+- `relations.createdAt` giảm dần: hỗ trợ lấy danh sách quan hệ theo thứ tự mới nhất.
+- Nếu sau này tách user ra collection riêng, nên thêm unique index cho `username` và `email` để tránh trùng tài khoản.
+
 ## Các tệp liên quan
 - [Twit.html](Twit.html) — giao diện chính.
 - [Twit.js](Twit.js) — logic client.
