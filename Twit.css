@@ -159,6 +159,12 @@ input[type="file"] {
 	background: #fff;
 }
 
+textarea {
+	resize: none;
+	overflow: hidden;
+	min-height: 80px;
+}
+
 textarea:focus,
 select:focus,
 input[type="text"]:focus,
@@ -657,6 +663,10 @@ button:focus {
 	width: min(620px, 95vw);
 	padding: 16px;
 	animation: reveal 0.2s ease;
+	max-height: 90vh;
+	display: flex;
+	flex-direction: column;
+	overflow-y: auto;
 }
 
 .image-viewer-dialog {
@@ -888,6 +898,9 @@ button:focus {
 	display: flex;
 	justify-content: flex-end;
 	gap: 10px;
+	flex-shrink: 0;
+	padding-top: 12px;
+	border-top: 1px solid var(--border);
 }
 
 .repost-preview {
