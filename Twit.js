@@ -492,6 +492,12 @@ function mapPost(post) {
 	};
 }
 
+function getRepostCount(post) {
+	const originalId = String(post.id);
+	const base = state.posts.filter(p => p.attachment && p.attachment.originalPostId === originalId).length;
+	return base + (post.optimisticRepostDelta || 0);
+}
+
 function mapRelation(relation) {
 	return {
 		id: String(relation.id || relation._id),
@@ -760,6 +766,20 @@ async function addCommentToPost(postId, text, parentId = null) {
 	if (!post) {
 		return false;
 	}
+	// Optimistic UI: add a temporary comment immediately
+	const tempId = `temp:comment:${Date.now()}`;
+	const tempComment = {
+		id: tempId,
+		userId: state.currentUserId,
+		text: text.trim(),
+		createdAt: new Date(),
+		parentId: parentId || null,
+		likedBy: new Set()
+	};
+	post.replies = post.replies || [];
+	post.replies.push(tempComment);
+	rerender();
+
 	try {
 		const updatedPost = await requestJson(`/posts/${postId}/comments`, {
 			method: "POST",
@@ -774,6 +794,10 @@ async function addCommentToPost(postId, text, parentId = null) {
 		return true;
 	} catch (error) {
 		console.error("Failed to add comment:", error);
+		// rollback optimistic comment
+		post.replies = (post.replies || []).filter(r => String(r.id) !== tempId);
+		rerender();
+		showErrorNotification("Unable to add comment.");
 		return false;
 	}
 }
@@ -1177,11 +1201,14 @@ function renderPosts() {
 		renderAttachment(node.querySelector(".post-attachment"), post);
 
 		const commentBtn = node.querySelector(".comment-btn");
+		// show comment count and open detail
+		commentBtn.textContent = `Comment (${post.replies.length})`;
 		commentBtn.addEventListener("click", () => {
 			openPostDetail(post.id);
 		});
 
 		const repostBtn = node.querySelector(".repost-btn");
+		repostBtn.textContent = `Repost (${getRepostCount(post)})`;
 		repostBtn.addEventListener("click", () => {
 			openRepostModal(post.id);
 		});
@@ -1206,11 +1233,13 @@ function renderPosts() {
 		const inlineCommentInput = node.querySelector(".inline-comment-input");
 		const inlineCommentSend = node.querySelector(".inline-comment-send");
 		inlineCommentSend.addEventListener("click", () => {
-			addCommentToPost(post.id, inlineCommentInput.value, null).then(sent => {
+			const text = inlineCommentInput.value;
+			if (!text.trim()) return;
+			inlineCommentInput.value = ""; // clear immediately for optimistic UX
+			addCommentToPost(post.id, text, null).then(sent => {
 				if (!sent) {
 					return;
 				}
-				inlineCommentInput.value = "";
 				rerender();
 				openPostDetail(post.id);
 			});
@@ -1351,8 +1380,8 @@ function openPostDetail(postId) {
 		<div class="post-detail-content">${post.content || ""}</div>
 		<section id="postDetailAttachment" class="post-attachment hidden"></section>
 		<footer class="post-actions post-detail-actions">
-			<button class="action-btn detail-comment-btn" type="button">Comment</button>
-			<button class="action-btn detail-repost-btn" type="button">Repost</button>
+			<button class="action-btn detail-comment-btn" type="button">Comment (${post.replies.length})</button>
+			<button class="action-btn detail-repost-btn" type="button">Repost (${getRepostCount(post)})</button>
 			<button class="action-btn detail-like-btn ${post.likedBy.has(state.currentUserId) ? "liked" : ""}" type="button">${post.likedBy.has(state.currentUserId) ? "Liked" : "Like"} (${post.likedBy.size})</button>
 			${post.userId === state.currentUserId ? '<button class="action-btn detail-delete-btn" type="button">Delete post</button>' : ""}
 		</footer>
@@ -1408,13 +1437,16 @@ function openPostDetail(postId) {
 	}
 
 	detailCommentSend.addEventListener("click", () => {
-			addCommentToPost(post.id, detailCommentInput.value, null).then(sent => {
-				if (!sent) {
-					return;
-				}
-				rerender();
-				openPostDetail(post.id);
-			});
+		const text = detailCommentInput.value;
+		if (!text.trim()) return;
+		detailCommentInput.value = "";
+		addCommentToPost(post.id, text, null).then(sent => {
+			if (!sent) {
+				return;
+			}
+			rerender();
+			openPostDetail(post.id);
+		});
 	});
 
 	detailCommentInput.addEventListener("keydown", event => {
@@ -1471,7 +1503,14 @@ async function createRepost() {
 	if (!title && !content) {
 		return;
 	}
+	const originalPost = state.posts.find(p => p.id === state.activeRepostPostId);
+	if (originalPost) {
+		originalPost.optimisticRepostDelta = (originalPost.optimisticRepostDelta || 0) + 1;
+		// reflect immediately
+		rerender();
+	}
 
+	closeRepostModal();
 	try {
 		const created = await requestJson(`/posts/${state.activeRepostPostId}/repost`, {
 			method: "POST",
@@ -1482,13 +1521,23 @@ async function createRepost() {
 			})
 		});
 		clearPostsCache();
+		// server will include the new repost as a post; sync it
 		syncPostFromServer(created);
-		closeRepostModal();
+		// remove optimistic delta (server count now includes new repost)
+		if (originalPost) {
+			originalPost.optimisticRepostDelta = Math.max(0, (originalPost.optimisticRepostDelta || 0) - 1);
+		}
 		state.viewMode = "home";
 		refs.feedFilter.value = "all";
 		rerender();
 	} catch (error) {
 		console.error("Failed to create repost:", error);
+		if (originalPost) {
+			originalPost.optimisticRepostDelta = Math.max(0, (originalPost.optimisticRepostDelta || 0) - 1);
+			rerender();
+		}
+		const msg = error instanceof Error ? error.message : String(error || "Unknown error");
+		showErrorNotification(`Unable to repost: ${msg}`);
 	}
 }
 
