@@ -121,7 +121,36 @@ mongoose.connect(MONGODB_URI, {
     maxPoolSize: 10,
     minPoolSize: 2
 })
-    .then(() => console.log('✓ MongoDB connected successfully'))
+    .then(() => {
+        console.log('✓ MongoDB connected successfully');
+        // Setup change stream after successful connection
+        try {
+            const postsCollection = mongoose.connection.collection('posts');
+            const changeStream = postsCollection.watch([], { fullDocument: 'updateLookup' });
+            changeStream.on('change', (change) => {
+                try {
+                    if (change.operationType === 'insert') {
+                        const doc = change.fullDocument;
+                        invalidatePostsCache();
+                        broadcastPostCreated(doc);
+                    } else if (change.operationType === 'update' || change.operationType === 'replace') {
+                        const doc = change.fullDocument;
+                        invalidatePostsCache();
+                        broadcastPostUpdated(doc);
+                    } else if (change.operationType === 'delete') {
+                        const id = change.documentKey && change.documentKey._id;
+                        invalidatePostsCache();
+                        if (id) broadcastPostDeleted(id);
+                    }
+                } catch (err) {
+                    console.error('Change stream handler error:', err && err.message ? err.message : err);
+                }
+            });
+            console.log('✓ Posts change stream established');
+        } catch (err) {
+            console.error('✗ Failed to establish posts change stream:', err && err.message ? err.message : err);
+        }
+    })
     .catch(err => console.error('✗ MongoDB connection error:', err.message));
 
 const commentSchema = new mongoose.Schema({
@@ -338,12 +367,7 @@ app.post('/api/relations/toggle', async (req, res) => {
 
 app.get('/api/posts', async (_req, res) => {
     try {
-        // Check cache first
-        const cachedPosts = getCachedPosts();
-        if (cachedPosts) {
-            return res.json(cachedPosts);
-        }
-
+        // Always read latest posts from DB, then update cache (cache is lower priority)
         const posts = await Post.find().sort({ createdAt: -1 }).lean();
         const postPackets = posts.map(toPostPacket);
         setPostsCache(postPackets);
