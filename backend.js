@@ -440,7 +440,7 @@ app.post('/api/posts', async (req, res) => {
         console.log(`  Stored attachments: ${newPost.attachments ? newPost.attachments.length : 0}`);
 
         invalidatePostsCache();
-        broadcastPostCreated(newPost);
+        // Broadcasting is handled by MongoDB change streams to avoid duplicate events
         sendPost(res, newPost, 201);
     } catch (err) {
         console.error('[POST ERROR]', err.message);
@@ -461,7 +461,7 @@ app.patch('/api/posts/:id', async (req, res) => {
         }
 
         invalidatePostsCache();
-        broadcastPostUpdated(post);
+        // Broadcasting is handled by MongoDB change streams to avoid duplicate events
         sendPost(res, post);
     } catch (err) {
         res.status(400).json({ message: 'Failed to update post', error: err.message });
@@ -487,7 +487,7 @@ app.delete('/api/posts/:id', async (req, res) => {
         await Post.findByIdAndDelete(req.params.id);
 
         invalidatePostsCache();
-        broadcastPostDeleted(req.params.id);
+        // Broadcasting is handled by MongoDB change streams to avoid duplicate events
         res.json({ message: 'Post deleted successfully' });
     } catch (err) {
         res.status(400).json({ message: 'Failed to delete post', error: err.message });
@@ -512,7 +512,7 @@ app.post('/api/posts/:id/comments', async (req, res) => {
         await post.save();
 
         invalidatePostsCache();
-        broadcastCommentAdded(post);
+        // Broadcasting is handled by MongoDB change streams to avoid duplicate events
         sendPost(res, post, 201);
     } catch (err) {
         res.status(500).json({ message: 'Failed to add comment', error: err.message });
@@ -543,7 +543,7 @@ app.patch('/api/posts/:postId/comments/:commentId', async (req, res) => {
         await post.save();
 
         invalidatePostsCache();
-        broadcastPostUpdated(post);
+        // Broadcasting is handled by MongoDB change streams to avoid duplicate events
         sendPost(res, post);
     } catch (err) {
         res.status(400).json({ message: 'Failed to update comment', error: err.message });
@@ -585,7 +585,7 @@ app.delete('/api/posts/:postId/comments/:commentId', async (req, res) => {
         await post.save();
 
         invalidatePostsCache();
-        broadcastPostUpdated(post);
+        // Broadcasting is handled by MongoDB change streams to avoid duplicate events
         sendPost(res, post);
     } catch (err) {
         res.status(400).json({ message: 'Failed to delete comment', error: err.message });
@@ -616,7 +616,7 @@ app.post('/api/posts/:id/like', async (req, res) => {
         await post.save();
 
         invalidatePostsCache();
-        broadcastPostLiked(post);
+        // Broadcasting is handled by MongoDB change streams to avoid duplicate events
         sendPost(res, post);
     } catch (err) {
         res.status(500).json({ message: 'Failed to toggle like', error: err.message });
@@ -657,7 +657,7 @@ app.post('/api/posts/:postId/comments/:commentId/like', async (req, res) => {
         await post.save();
 
         invalidatePostsCache();
-        broadcastPostUpdated(post);
+        // Broadcasting is handled by MongoDB change streams to avoid duplicate events
         sendPost(res, post);
     } catch (err) {
         res.status(500).json({ message: 'Failed to toggle comment like', error: err.message });
@@ -688,7 +688,7 @@ app.post('/api/posts/:id/repost', async (req, res) => {
         });
 
         invalidatePostsCache();
-        broadcastPostCreated(repost);
+        // Broadcasting is handled by MongoDB change streams to avoid duplicate events
         sendPost(res, repost, 201);
     } catch (err) {
         res.status(500).json({ message: 'Failed to create repost', error: err.message });
