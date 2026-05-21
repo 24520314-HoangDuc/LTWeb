@@ -294,6 +294,27 @@ function broadcastPostLiked(post) {
     console.log('📡 Broadcasting post like');
 }
 
+// Relation broadcasts
+function broadcastRelationFollow(ownerId, targetId) {
+    io.emit('relation:follow', { ownerId, targetId });
+    console.log(`📡 Broadcasting follow: ${ownerId} -> ${targetId}`);
+}
+
+function broadcastRelationUnfollow(ownerId, targetId) {
+    io.emit('relation:unfollow', { ownerId, targetId });
+    console.log(`📡 Broadcasting unfollow: ${ownerId} -> ${targetId}`);
+}
+
+function broadcastRelationBlock(ownerId, targetId) {
+    io.emit('relation:block', { ownerId, targetId });
+    console.log(`📡 Broadcasting block: ${ownerId} -> ${targetId}`);
+}
+
+function broadcastRelationUnblock(ownerId, targetId) {
+    io.emit('relation:unblock', { ownerId, targetId });
+    console.log(`📡 Broadcasting unblock: ${ownerId} -> ${targetId}`);
+}
+
 app.get('/api/health', (_req, res) => {
     res.json({ ok: true });
 });
@@ -340,8 +361,12 @@ app.post('/api/relations/toggle', async (req, res) => {
             const existing = await Relation.findOne({ ownerId, targetId, type: 'follow' });
             if (existing) {
                 await Relation.deleteOne({ _id: existing._id });
+                // Notify clients about unfollow
+                try { broadcastRelationUnfollow(ownerId, targetId); } catch (e) { console.error('Broadcast unfollow error', e && e.message ? e.message : e); }
             } else {
                 await Relation.create({ ownerId, targetId, type: 'follow' });
+                // Notify clients about follow
+                try { broadcastRelationFollow(ownerId, targetId); } catch (e) { console.error('Broadcast follow error', e && e.message ? e.message : e); }
             }
         }
 
@@ -349,9 +374,17 @@ app.post('/api/relations/toggle', async (req, res) => {
             const existing = await Relation.findOne({ ownerId, targetId, type: 'block' });
             if (existing) {
                 await Relation.deleteOne({ _id: existing._id });
+                // Notify clients about unblock
+                try { broadcastRelationUnblock(ownerId, targetId); } catch (e) { console.error('Broadcast unblock error', e && e.message ? e.message : e); }
             } else {
-                await Relation.deleteMany({ ownerId, targetId, type: 'follow' });
+                // If there was a follow relation, remove it and notify
+                const removed = await Relation.deleteMany({ ownerId, targetId, type: 'follow' });
+                if (removed && removed.deletedCount && removed.deletedCount > 0) {
+                    try { broadcastRelationUnfollow(ownerId, targetId); } catch (e) { console.error('Broadcast unfollow on block error', e && e.message ? e.message : e); }
+                }
                 await Relation.create({ ownerId, targetId, type: 'block' });
+                // Notify clients about block
+                try { broadcastRelationBlock(ownerId, targetId); } catch (e) { console.error('Broadcast block error', e && e.message ? e.message : e); }
             }
         }
 

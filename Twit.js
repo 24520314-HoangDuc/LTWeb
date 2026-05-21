@@ -131,6 +131,67 @@ function initSocket() {
 		}
 		rerender();
 	});
+
+	// Relation events: follow/unfollow/block/unblock
+	socket.on('relation:follow', (data) => {
+		try {
+			console.log('🔁 Relation follow received', data);
+			const rel = {
+				id: `rel:${data.ownerId}:${data.targetId}:follow:${Date.now()}`,
+				ownerId: data.ownerId,
+				targetId: data.targetId,
+				type: 'follow',
+				createdAt: new Date()
+			};
+			state.relations.unshift(mapRelation(rel));
+			syncRelationState();
+			rerender();
+		} catch (err) {
+			console.error('Error handling relation:follow', err);
+		}
+	});
+
+	socket.on('relation:unfollow', (data) => {
+		try {
+			console.log('🔁 Relation unfollow received', data);
+			state.relations = state.relations.filter(r => !(r.ownerId === data.ownerId && r.targetId === data.targetId && r.type === 'follow'));
+			syncRelationState();
+			rerender();
+		} catch (err) {
+			console.error('Error handling relation:unfollow', err);
+		}
+	});
+
+	socket.on('relation:block', (data) => {
+		try {
+			console.log('🔁 Relation block received', data);
+			const rel = {
+				id: `rel:${data.ownerId}:${data.targetId}:block:${Date.now()}`,
+				ownerId: data.ownerId,
+				targetId: data.targetId,
+				type: 'block',
+				createdAt: new Date()
+			};
+			// remove any follow by the same owner->target
+			state.relations = state.relations.filter(r => !(r.ownerId === data.ownerId && r.targetId === data.targetId && r.type === 'follow'));
+			state.relations.unshift(mapRelation(rel));
+			syncRelationState();
+			rerender();
+		} catch (err) {
+			console.error('Error handling relation:block', err);
+		}
+	});
+
+	socket.on('relation:unblock', (data) => {
+		try {
+			console.log('🔁 Relation unblock received', data);
+			state.relations = state.relations.filter(r => !(r.ownerId === data.ownerId && r.targetId === data.targetId && r.type === 'block'));
+			syncRelationState();
+			rerender();
+		} catch (err) {
+			console.error('Error handling relation:unblock', err);
+		}
+	});
 }
 
 const state = {
