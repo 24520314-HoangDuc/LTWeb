@@ -1728,6 +1728,11 @@ function bindEvents() {
 
 	refs.postInput.addEventListener("input", () => {
 		refs.charCount.textContent = `${refs.postInput.value.length}/500`;
+		
+		// Auto-expand textarea
+		refs.postInput.style.height = "auto";
+		const scrollHeight = refs.postInput.scrollHeight;
+		refs.postInput.style.height = scrollHeight + "px";
 	});
 
 	refs.postAttachment.addEventListener("change", async () => {
