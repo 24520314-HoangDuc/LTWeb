@@ -1498,12 +1498,10 @@ async function createRepost() {
 	if (!state.activeRepostPostId) {
 		return;
 	}
-	const title = refs.repostTitle.value.trim();
+	const repostPostId = state.activeRepostPostId;
+	const title = refs.repostTitle.value.trim() || "Repost";
 	const content = refs.repostContent.value.trim();
-	if (!title && !content) {
-		return;
-	}
-	const originalPost = state.posts.find(p => p.id === state.activeRepostPostId);
+	const originalPost = state.posts.find(p => p.id === repostPostId);
 	if (originalPost) {
 		originalPost.optimisticRepostDelta = (originalPost.optimisticRepostDelta || 0) + 1;
 		// reflect immediately
@@ -1512,7 +1510,7 @@ async function createRepost() {
 
 	closeRepostModal();
 	try {
-		const created = await requestJson(`/posts/${state.activeRepostPostId}/repost`, {
+		const created = await requestJson(`/posts/${repostPostId}/repost`, {
 			method: "POST",
 			body: JSON.stringify({
 				userId: state.currentUserId,

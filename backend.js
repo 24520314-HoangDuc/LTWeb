@@ -709,10 +709,12 @@ app.post('/api/posts/:id/repost', async (req, res) => {
             return res.status(400).json({ message: 'userId is required' });
         }
 
+        const repostContent = content || sourcePost.content || sourcePost.title || 'Repost';
+
         const repost = await Post.create({
             userId,
             title: title || 'Repost',
-            content: content || '',
+            content: repostContent,
             attachment: {
                 type: 'repost',
                 name: 'Reposted post',
